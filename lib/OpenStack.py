@@ -62,15 +62,9 @@ class OpenstackAPI():
         for value in range(len(json_data['images'])):
             tmplist['id'] = json_data['images'][value]['id']
             tmplist['name'] = json_data['images'][value]['name']
+            tmplist['status'] = json_data['images'][value]['status']
             self.imagelist.append(tmplist)
             tmplist = {}
-        if findimage:
-            for value in range(len(self.imagelist)):
-                if self.imagelist[value]['name'].find(findimage):
-                    return True, self.imagelist[value]['id']
-            return False, "no match"
-        else:
-            print self.imagelist
 
 # get image by id
     def getImageDetail(self, imageID):
@@ -81,12 +75,19 @@ class OpenstackAPI():
 
 # create image
     def CreateImage(self, imagename):
-        url = "http://%s:9292/v2/images" % (self.host)
+        response = ""
         data = {"name": imagename}
-        json_data = json.dumps(data)
-        r = requests.post(url, headers=self.header, data=json_data)
-        json_response = json.loads(r.text)
-        return json_response['id']
+        for value in range(len(self.imagelist)):
+            if imagename == self.imagelist[value]["name"]:
+                response = self.imagelist[value]["id"]
+        if not response:
+            url = "http://%s:9292/v2/images" % (self.host)
+            data = {"name": imagename}
+            json_data = json.dumps(data)
+            r = requests.post(url, headers=self.header, data=json_data)
+            json_response = json.loads(r.text)
+            response = json_response['id']
+        return response
 
 # get all flavors list
     def getFlavorLists(self):
@@ -119,7 +120,10 @@ class OpenstackAPI():
     def deleteFlavor(self, flavorID):
         url = "http://%s:8774/v2.1/flavors/%s" % (self.host, flavorID)
         r = requests.delete(url, headers=self.header)
-        print(r.status_code)
+        if r.status_code == 202:
+            return True
+        else:
+            return False
 
 # create a Flavor and check flavor already exists
     def createFlavor(self, flavorname="test_flavor", ram=1024, cpu=2, disk=10):
@@ -135,15 +139,35 @@ class OpenstackAPI():
             if data["flavor"]["name"] == self.flavorlist[value]["name"]:
                 status, flavorID = self.getFlavorDetail(
                                         self.flavorlist[value]["id"],
-                                        data["flavor"]["vcpus"],
-                                        data["flavor"]["ram"],
-                                        data["flavor"]["disk"])
+                                        cpu, ram, disk)
                 if status:
                     data["flavor"]["id"] == flavorID
                 else:
-                    self.deleteFlavor(flavorID)
-                    data["flavor"]["id"] == flavorID
+                    if self.deleteFlavor(flavorID):
+                        data["flavor"]["id"] == flavorID
+                    json_data = json.dumps(data)
+                    r = requests.post(url, headers=self.header, data=json_data)
+                    json_data = json.loads(r.text)
+        return flavorID
+
+# create a server
+    def createServerByAuto(self, imageID, flavorID):
+        url = "http://%s:8774/v2.1/servers" % (self.host)
+        data = {"server":
+                {
+                    "name": "auto-allocate-network",
+                    "imageRef": imageID,
+                    "flavorRef": flavorID,
+                 }
+                }
         json_data = json.dumps(data)
         r = requests.post(url, headers=self.header, data=json_data)
+        json_response = json.loads(r.text)
+        print(json_response)
+
+# list servers
+    def getServerLists(self):
+        url = "http://%s:8774/v2.1/servers" % (self.host)
+        r = requests.get(url, headers=self.header)
         json_data = json.loads(r.text)
-        return json_data["flavor"]["id"]
+        print(json_data)

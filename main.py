@@ -15,16 +15,17 @@ def main():
     api = OpenstackAPI(host, username, password)
     api.getToken()
 # image init, create 'imagename'
-    exists, imageID = api.getImage(imagename)
-    if not exists:
-        imageID = api.CreateImage(imagename)
+    api.getImage()
+    imageID = api.CreateImage(imagename)
     api.getImageDetail(imageID)
-
 # flavor init, create 'flavorname'
     api.getFlavorLists()
     flavorID = api.createFlavor(flavorname=flavorname)
     api.getFlavorLists()
     api.getFlavorDetail(flavorID)
+# create server
+    api.createServerByAuto(imageID, flavorID)
+    api.getServerLists()
 
 
 if __name__ == "__main__":
