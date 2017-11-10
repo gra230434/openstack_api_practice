@@ -12,14 +12,16 @@ class OpenstackAPI():
     imagelist = []
     flavorlist = []
 
-    def __init__(self, host, username, password):
+    def __init__(self, host, compute, username, password):
         self.host = host
+        self.url = "http://{}:8774/".format(self.host)
+        self.compute = compute
         self.username = username
         self.password = password
 
 # get token
     def getToken(self):
-        url = "http://%s:5000/v3/auth/tokens" % (self.host)
+        url = "http://%s:35357/v3/auth/tokens" % (self.host)
         data = {'auth': {
                     'identity': {
                         'methods': ['password'],
@@ -31,22 +33,19 @@ class OpenstackAPI():
                             }
                         }
                     },
-                    'scope': {
-                        'project': {
-                            'name': 'admin',
-                            'domain': {
-                                'name': 'Default'
-                            }
-                        }
-                    }
                 }}
         header = {'Content-type': 'application/json'}
         json_data = json.dumps(data)
         r = requests.post(url, headers=header, data=json_data)
+        print(r.headers)
+        print(r.text)
         self.token = r.headers['X-Subject-Token']
-        self.header = {'Content-type': 'application/json',
-                       'X-Auth-Token': self.token}
+        self.ID = r.headers['x-openstack-request-id']
+        self.header = {'X-Auth-Token': self.token,
+                       'X-Openstack-Request-Id': self.ID}
+        print("Token")
         print(self.token)
+        print("New Header")
         print(self.header)
 
 # get images
@@ -89,13 +88,26 @@ class OpenstackAPI():
             response = json_response['id']
         return response
 
-# get all flavors list
-    def getFlavorLists(self):
-        tmplist = {}
-        self.flavorlist = []
-        url = "http://%s:8774/v2.1/flavors" % (self.host)
+    def getServerID(self, servicename):
+        url = "http://%s:35357/v3/services" % (self.host)
         r = requests.get(url, headers=self.header)
         json_data = json.loads(r.text)
+        for service in json_data['services']:
+            if service['name'] == servicename:
+                return service['id']
+        return None
+
+# get all flavors list
+    def getFlavorLists(self):
+        print("getFlavorLists")
+        tmplist = {}
+        self.flavorlist = []
+        urlid = self.getServerID('nova')
+        url = "{}/v2.1/flavors".format(self.url)
+        r = requests.get(url, headers=self.header)
+        json_data = json.loads(r.text)
+        print(r.headers)
+        print(json_data)
         for value in range(len(json_data['flavors'])):
             tmplist['id'] = json_data['flavors'][value]['id']
             tmplist['name'] = json_data['flavors'][value]['name']
